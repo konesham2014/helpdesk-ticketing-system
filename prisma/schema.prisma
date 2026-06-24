@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  AGENT
+  ADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole  @default(CUSTOMER)
+  avatar        String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  tickets       Ticket[]  @relation("CustomerTickets")
+  assignedTickets Ticket[] @relation("AssignedTickets")
+  comments      Comment[]
+  activities    ActivityLog[]
+  attachments   Attachment[]
+
+  @@map("users")
+}
+
+model Ticket {
+  id            String         @id @default(cuid())
+  title         String
+  description   String         @db.Text
+  status        TicketStatus   @default(OPEN)
+  priority      TicketPriority @default(MEDIUM)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  resolvedAt    DateTime?
+
+  // Relations
+  customerId    String
+  customer      User           @relation("CustomerTickets", fields: [customerId], references: [id])
+
+  assignedToId  String?
+  assignedTo    User?        @relation("AssignedTickets", fields: [assignedToId], references: [id])
+
+  comments      Comment[]
+  attachments   Attachment[]
+  activities    ActivityLog[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([customerId])
+  @@index([assignedToId])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  content     String   @db.Text
+  isInternal  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  ticketId    String
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+
+  @@map("comments")
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  url         String
+  createdAt   DateTime @default(now())
+
+  ticketId    String
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  uploadedById String
+  uploadedBy   User    @relation(fields: [uploadedById], references: [id])
+
+  @@map("attachments")
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  action      String
+  details     String?  @db.Text
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+
+  ticketId    String?
+  ticket      Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
